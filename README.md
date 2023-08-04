@@ -25,7 +25,10 @@ Topics covered:
  - Setting the cursor
  - Setting dark colour theme
  - Spacing and padding
+ - Selection Grid
  - Custom drawing with Snapshot
+ - Setting the app icon
+ - UI from graphical designer
 
 For beginners, I suggest walking through each example and try to understand what each line is doing. I also recommend taking a look at the docs for each widget.
 
@@ -222,6 +225,8 @@ You can handle the toggle signal like this:
 radio1.connect("toggled", self.radio_toggled)
 ```
 
+Replace `self.radio_toggled` with your own function. 
+
 When connecting a signal it's helpful to pass additional parameters like as follows. This way you can have one function handle events from multiple widgets. Just don't forget to handle 
 the extra parameter in your handler function.
 
@@ -274,6 +279,37 @@ It should look like this now:
 
 The file `part1.py` is an example of the code so far.
 
+## Adding your custom CSS stylesheet
+
+Did you know you can use **some** CSS rules in GTK? 
+Lets create a new `style.css` file that we can use to apply properties to our new label:
+
+```css
+/* Let's create a title class */
+.title {
+    font-size: 25px;
+    font-weight: bold;
+}
+```
+
+Then, we need to load the CSS file in our application; to achieve this, we need a [CssProvider](https://docs.gtk.org/gtk4/class.CssProvider.html).
+
+```python
+# first, we need to add Gdk to our imports
+from gi.repository import Gtk, Gdk
+
+css_provider = Gtk.CssProvider()
+css_provider.load_from_path('style.css')
+Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+```
+
+Finally, we can add the `title` class to our `label`
+
+```python 
+self.label.set_css_classes(['title'])
+```
+
+
 ## Adding a slider (Aka scale)
 
 Here's an example of adding a [Scale](https://docs.gtk.org/gtk4/ctor.Scale.new.html) with a range from 0 to 10
@@ -324,40 +360,45 @@ For some defaults you can take a look at `/usr/share/icons/Adwaita/scalable/acti
 If you were adding a new action icon it would go in `/usr/share/icons/hicolor/scalable/actions`
 
 > **Help! Todo!** Is this the best way? How do icons work in a development environment?
+> 
 
-## Open file dialog
+## Adding a file chooser
 
-Let's make that open button actually show an open file dialog
+Here we use [***Gtk.FileDialog***](https://docs.gtk.org/gtk4/class.FileDialog.html) to present an open file dialog to the user.
 
 ```python
-        self.open_dialog = Gtk.FileChooserNative.new(title="Choose a file",
-                                                     parent=self, action=Gtk.FileChooserAction.OPEN)
-
-        self.open_dialog.connect("response", self.open_response)
-        self.open_button.connect("clicked", self.show_open_dialog)
-
+        self.open_dialog = Gtk.FileDialog.new()
+        self.open_dialog.set_title("Select a File")
+        
     def show_open_dialog(self, button):
-        self.open_dialog.show()
-
-    def open_response(self, dialog, response):
-        if response == Gtk.ResponseType.ACCEPT:
-            file = dialog.get_file()
-            filename = file.get_path()
-            print(filename)  # Here you could handle opening or saving the file
-
+        self.open_dialog.open(self, None, self.open_dialog_open_callback)
+        
+    def open_dialog_open_callback(self, dialog, result):
+        try:
+            file = dialog.open_finish(result)
+            if file is not None:
+                print(f"File path is {file.get_path()}")
+                # Handle loading file from here
+        except GLib.Error as error:
+            print(f"Error opening file: {error.message}")
+     
 ```
 
-The action type can also be **SAVE** and **SELECT_FOLDER**
-
-If you wanted to restrict the file types shown, you could add a filter. For example:
+Adding a filter and setting it as the default:
 
 ```python
         f = Gtk.FileFilter()
         f.set_name("Image files")
         f.add_mime_type("image/jpeg")
         f.add_mime_type("image/png")
-        self.open_dialog.add_filter(f)
-```
+
+        filters = Gio.ListStore.new(Gtk.FileFilter)  # Create a ListStore with the type Gtk.FileFilter
+        filters.append(f)  # Add the file filter to the ListStore. You could add more.
+
+        self.open_dialog.set_filters(filters)  # Set the filters for the open dialog
+        self.open_dialog.set_default_filter(f)
+````
+
 
 ## Adding a button with menu
 
@@ -436,7 +477,7 @@ from gi.repository import Gtk, Adw, Gio, GLib  # Add GLib to imports
         self.about.set_logo_icon_name("org.example.example")  # The icon will need to be added to appropriate location
                                                  # E.g. /usr/share/icons/hicolor/scalable/apps/org.example.example.svg
 
-        self.about.show()
+        self.about.set_visible(True)
 
 ```
 
@@ -455,6 +496,8 @@ from gi.repository import Gtk, Adw, Gio, GLib  # Add GLib to imports
          dialog.set_copyright("© 2022 developer") 
          dialog.set_developers(["Developer"]) 
          dialog.set_application_icon("com.github.devname.appname") # icon must be uploaded in ~/.local/share/icons or /usr/share/icons
+
+         dialog.set_visible(True)
 ```
 For further reading on what you can add, see [***AboutDialog***](https://docs.gtk.org/gtk4/class.AboutDialog.html).
 
@@ -578,7 +621,7 @@ Further resources on Cairo:
 
  - [PyCairo Visual Documentation](https://seriot.ch/pycairo/)
 
-Note that Cairo uses software rendering. For accelerated rendering, Gtk Snapshot can be used (todo)
+Note that Cairo uses software rendering. For accelerated rendering, Gtk Snapshot can be used, see sections further down below.
 
 ## Input handling in our drawing area
 
@@ -643,7 +686,7 @@ See also: [EventControllerKey](https://docs.gtk.org/gtk4/class.EventControllerKe
         evk.connect("key-pressed", self.key_press)
         self.add_controller(evk)  # add to window
     def key_press(self, event, keyval, keycode, state):
-        if keyval == Gdk.KEY_q and state & Gdk.ModifierType.CONTROL_MASK:   # Add Gdk to your imports. i.e. from gi import Gdk
+        if keyval == Gdk.KEY_q and state & Gdk.ModifierType.CONTROL_MASK:   # Add Gdk to your imports. i.e. from gi.repository import Gdk
             self.close()
 ```
 
@@ -694,6 +737,92 @@ margin to our **box** layout.
 
 ![Spacing and padding](spacing.png)
 
+# Using GridView
+
+Here Ill show how to make a [***GridView***](https://docs.gtk.org/gtk4/class.GridView.html). The setup is similar for other wigets like ListView and ColumnsView.
+
+![GridView](grid.png)
+
+First lets make a GridView and attatch it to our second vert box.
+
+```python
+
+        self.grid1 = Gtk.GridView()
+        self.box3.append(self.grid1)
+
+        fruits = ["Banana", "Apple", "Strawberry", "Pear", "Watermelon", "Blueberry"]
+```
+
+That part was easy! But it gets a little more complicated from here. In order for these kinds of widgets to work we need two things, a  **model** and a **factory**.
+
+Lets start with the **model**. The model will hold the basis for the information we want in each item in the grid.
+
+First we can create an object that will hold the data we want for each item in the list/grid.
+
+```python
+        class Fruit(GObject.Object):
+            name = GObject.Property(type=str)
+            def __init__(self, name):
+                super().__init__()
+                self.name = name
+```
+
+Then we create each object and put them in a ListStore. Then from that ListStore we create a SelectionModel, in this case im using a *SingleSelection*.
+
+Then we set that selection model as the model for the grid. 
+
+```python
+        self.ls = Gio.ListStore()
+
+        for f in fruits:
+            self.ls.append(Fruit(f))
+
+        ss = Gtk.SingleSelection()
+        ss.set_model(self.ls)
+
+        self.grid1.set_model(ss)
+```
+
+Next we need a **factory**. The factory is what creates the widgets in the grid for each item in the model.
+
+```python
+        factory = Gtk.SignalListItemFactory()
+
+        def f_setup(fact, item):
+            label = Gtk.Label(halign=Gtk.Align.START)
+            label.set_selectable(False)
+            item.set_child(label)
+
+        factory.connect("setup", f_setup)
+
+        def f_bind(fact, item):
+            item.get_child().set_label(item.get_item().name)
+
+        factory.connect("bind", f_bind)
+
+        self.grid1.set_factory(factory)
+
+```
+
+That should then work. To get the selected item in the grid:
+
+```python
+print(ss.get_selected_item().name)
+```
+
+To detect when the selected item has changed:
+
+```python
+        def on_selected_items_changed(selection, position, n_items):
+            selected_item = selection.get_selected_item()
+            if selected_item is not None:
+                print(f"Selected item changed to: {selected_item.name}")
+        ss.connect("selection-changed", on_selected_items_changed)
+```
+
+To detect clicks on an item: ***TODO**
+
+
 # Custom drawing with Snapshot
 
 As mentioned in the Cairo section, Snapshot uses fast hardware accelerated drawing, but it's a little more complicated to
@@ -734,7 +863,7 @@ Here we use:
         colour = Gdk.RGBA()
         colour.parse("#e80e0e")
         
-        rect = Graphene.Rect().__init__(10, 10, 40, 60)   # Add Graphene to your imports. i.e. from gi import Graphene
+        rect = Graphene.Rect().__init__(10, 10, 40, 60)   # Add Graphene to your imports. i.e. from gi.repository import Graphene
 
         s.append_color(colour, rect)
 ```
@@ -751,7 +880,7 @@ This is a little more complicated...
 
         rect = Graphene.Rect().init(50, 70, 40, 40)
         
-        rounded_rect = Gsk.RoundedRect()  # Add Gsk to your imports. i.e. from gi import Gsk
+        rounded_rect = Gsk.RoundedRect()  # Add Gsk to your imports. i.e. from gi.repository import Gsk
         rounded_rect.init_from_rect(rect, radius=20)  # A radius of 90 would make a circle
         
         s.push_rounded_clip(rounded_rect)
@@ -801,7 +930,7 @@ a basic example of a single line of text:
         font.set_size(12 * Pango.SCALE)  # todo how do we follow the window scaling factor?
 
         context = self.get_pango_context()
-        layout = Pango.Layout(context)  # Add Pango to your imports. i.e. from gi import Pango
+        layout = Pango.Layout(context)  # Add Pango to your imports. i.e. from gi.repository import Pango
         layout.set_font_description(font)
         layout.set_text("Example text")
         
@@ -816,6 +945,118 @@ a basic example of a single line of text:
     
 ```
 
+## Setting the App Icon
+
+How to set an icon for your app.
+
+First make sure you created an application ID as mentioned near the begnning of this tutorial, e.g. `com.github.me.myapp`. 
+
+Then your icon file(s) will go in the `hicolor` theme once you package your app. (hicolor is the base theme that all other themes inherit).
+
+`/usr/share/icons/hicolor/128x128/apps/com.github.me.myapp.png` for a raster image for example, and/or 
+`/usr/share/icons/hicolor/scalable/apps/com.github.me.myapp.svg` for vector.
+
+(Or locally in `~/.local/share/icons/hicolor/...`)
+
+A single svg is sufficent for GNOME, but other desktop environments may look for PNG's.
+
+Typically you would store that hicolor directory structure in your project directory as `data/icons/hicolor/...`. When packaging you copy it to the appropriate location on the system.
+
+Once you make a .desktop file, in it set the icon field to your app id: `Icon=com.github.me.myapp`. The icon will work once the .desktop file and icons are installed to the appropriate locations on your system.
+
+**Q: OK but how do I programmatically set the icon of my window?**
+
+**A:** In modern desktop Linux the idea is you don't. Wayland provides no mechanism for a client program to set an icon. How it works is the Wayland client sends your application ID to the window manager, its your window manager which then takes responsibility for picking the icon itself. This is done by referencing the .desktop file, where that application ID corresponds to the name of the desktop file.
+
+## UI from Graphical Designer
+
+It may be faster to mock up a UI in a graghical designer such as [Cambalache](https://flathub.org/apps/ar.xjuan.Cambalache). This will a give you a .ui file which your
+GTK application can use to generate its UI.
+
+In Cambalache try make a window, add some layouts, and a button. Its up to you. Make sure to set an object id for objects you want to reference in your code,
+including the main window. When you click export it will generate a .ui XML file.
+
+![Cambalache](cam.png)
+
+For my design I get the XML:
+
+```xml
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Created with Cambalache 0.10.3 -->
+<interface>
+  <!-- interface-name test.ui -->
+  <requires lib="gtk" version="4.6"/>
+  <object class="GtkApplicationWindow" id="main_window">
+    <property name="default-height">200</property>
+    <property name="default-width">400</property>
+    <property name="title">UI XML Test</property>
+    <child>
+      <object class="GtkBox">
+        <child>
+          <object class="GtkBox">
+            <property name="margin-bottom">5</property>
+            <property name="margin-end">5</property>
+            <property name="margin-start">5</property>
+            <property name="margin-top">5</property>
+            <property name="orientation">vertical</property>
+            <child>
+              <object class="GtkButton" id="button1">
+                <property name="halign">start</property>
+                <property name="hexpand">True</property>
+                <property name="label">Test button</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>
+```
+
+Then we can write our app in Python and load the UI using a [Builder](https://docs.gtk.org/gtk4/class.Builder.html).
+
+```python
+import sys
+import gi
+gi.require_version('Gtk', '4.0')
+gi.require_version('Adw', '1')
+from gi.repository import Gtk, Adw
+
+class MyApp(Adw.Application):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.connect('activate', self.on_activate)
+
+    def on_activate(self, app):
+        # Create a Builder
+        builder = Gtk.Builder()
+        builder.add_from_file("test.ui")
+
+        # Obtain the button widget and connect it to a function
+        button = builder.get_object("button1")
+        button.connect("clicked", self.hello)
+
+        # Obtain and show the main window
+        self.win = builder.get_object("main_window")
+        self.win.set_application(self)  # Application will close once it no longer has active windows attached to it
+        self.win.present()
+
+    def hello(self, button):
+        print("Hello")
+
+app = MyApp(application_id="com.example.GtkApplication")
+app.run(sys.argv)
+
+```
+
+So in this method we simply obtain the objects defined by our XML using `builder.get_object()`
+
+In the above example I get the button I created and connect it to a function.
+
+***todo:*** using resoure files
+
+
 ## Todo...
 
 Text box: [Entry](https://docs.gtk.org/gtk4/class.Entry.html) 
@@ -823,8 +1064,6 @@ Text box: [Entry](https://docs.gtk.org/gtk4/class.Entry.html)
 Number changer: [SpinButton](https://docs.gtk.org/gtk4/class.SpinButton.html)
 
 Picture.
-
-UI from XML.
 
 Custom Styles.
 

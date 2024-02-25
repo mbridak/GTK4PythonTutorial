@@ -32,7 +32,9 @@ Topics covered:
 
 For beginners, I suggest walking through each example and try to understand what each line is doing. I also recommend taking a look at the docs for each widget.
 
-Helpful is the [GTK4 Widget Gallery](https://docs.gtk.org/gtk4/visual_index.html) which shows you all the common widgets.
+It can be helpful to view the [GTK4 Widget Gallery](https://docs.gtk.org/gtk4/visual_index.html) which shows you all the common widgets. 
+
+For Adwaita widgets also see [Adwaita Widget Gallery](https://gnome.pages.gitlab.gnome.org/libadwaita/doc/main/widget-gallery.html). Though for this tutorial i'll focus on standard GTK4 style widgets.
 
 
 ## A most basic program
@@ -60,7 +62,7 @@ This should display a small blank window.
 This is a minimal amount of code to show a window. But we will start off with a better example:
 
  - Making the code into classes. 'Cause doing it functional style is a little awkward in Python.
- - Switching to **Libawaita**, since many GNOME apps now use its new styling.
+ - Switching to **Libadwaita**, since many GNOME apps now use its new styling.
  - Pass in the app arguments.
  - Give the app an application id.
 
@@ -484,7 +486,7 @@ from gi.repository import Gtk, Adw, Gio, GLib  # Add GLib to imports
 ### add about window (better About Dialog)
 ```python
          dialog = Adw.AboutWindow(transient_for=app.get_active_window()) 
-         dialog.set_application_name=("App name") 
+         dialog.set_application_name("App name") 
          dialog.set_version("1.0") 
          dialog.set_developer_name("Developer") 
          dialog.set_license_type(Gtk.License(Gtk.License.GPL_3_0)) 
@@ -492,7 +494,7 @@ from gi.repository import Gtk, Adw, Gio, GLib  # Add GLib to imports
          dialog.set_website("https://github.com/Tailko2k/GTK4PythonTutorial") 
          dialog.set_issue_url("https://github.com/Tailko2k/GTK4PythonTutorial/issues") 
          dialog.add_credit_section("Contributors", ["Name1 url"]) 
-         dialog.set_translator_credi("Name1 url") 
+         dialog.set_translator_credits("Name1 url") 
          dialog.set_copyright("© 2022 developer") 
          dialog.set_developers(["Developer"]) 
          dialog.set_application_icon("com.github.devname.appname") # icon must be uploaded in ~/.local/share/icons or /usr/share/icons
@@ -739,7 +741,7 @@ margin to our **box** layout.
 
 # Using GridView
 
-Here Ill show how to make a [***GridView***](https://docs.gtk.org/gtk4/class.GridView.html). The setup is similar for other wigets like ListView and ColumnsView.
+Here Ill show how to make a [***GridView***](https://docs.gtk.org/gtk4/class.GridView.html). The setup is similar for other wigets like ***ListView*** and ***ColumnsView***.
 
 ![GridView](grid.png)
 
@@ -804,7 +806,21 @@ Next we need a **factory**. The factory is what creates the widgets in the grid 
 
 ```
 
-That should then work. To get the selected item in the grid:
+That should then work. 
+
+The above is useful if the displayed data wont change, but if it is to change dynamically we need to "bind" the property so that any changes are synced. Here is a revised bind function using bind_property:
+
+```python
+        def f_bind(fact, item):
+            fruit = item.get_item()
+            fruit.bind_property("name",
+              item.get_child(), "label",
+              GObject.BindingFlags.SYNC_CREATE)
+```
+
+Any changes to the name will automatically update the display.
+
+To get the selected item in the grid:
 
 ```python
 print(ss.get_selected_item().name)
@@ -819,6 +835,8 @@ To detect when the selected item has changed:
                 print(f"Selected item changed to: {selected_item.name}")
         ss.connect("selection-changed", on_selected_items_changed)
 ```
+
+
 
 To detect clicks on an item: ***TODO**
 
